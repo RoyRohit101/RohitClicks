@@ -91,7 +91,7 @@ module.exports = async (req, res) => {
         const safePath = String(pathname || '');
         const pathPrefix = 'rohitclicks/photos/' + projectId + '/';
         if (!safePath.startsWith(pathPrefix) ||
-            !/^rohitclicks\\/photos\\/[a-zA-Z0-9_-]{1,90}\\/[a-zA-Z0-9._-]+\\.(jpg|jpeg|png|webp|avif)$/i.test(safePath)) {
+            !/^rohitclicks\/photos\/[a-zA-Z0-9_-]{1,90}\/[a-zA-Z0-9._-]+\.(jpg|jpeg|png|webp|avif)$/i.test(safePath)) {
           throw new Error('Invalid photo path.');
         }
 

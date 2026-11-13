@@ -71,6 +71,10 @@ footer{border-top:1px solid var(--bd);padding:60px 5vw 40px;display:flex;flex-wr
 .photo-actions button{flex:1 1 58px;border:1px solid var(--bd);background:none;color:var(--tx);padding:7px 5px;font:10px "DM Mono";cursor:pointer}
 .photo-actions button:hover{border-color:var(--ac);color:var(--hv)}
 .photo-empty{padding:36px 18px;border:1px dashed var(--bd);text-align:center;color:var(--mu);font-size:13px}
+.photo-picker-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0 8px}
+.photo-picker-title{font:11px "DM Mono";letter-spacing:.1em;color:var(--mu)}
+.photo-file-input{display:block;position:static;opacity:1;flex:1 1 320px;min-width:220px;max-width:680px;width:100%;height:auto;padding:9px;background:var(--bg2);border:1px solid var(--bd);color:var(--tx);cursor:pointer}
+.photo-file-input::file-selector-button{background:var(--ac);color:#101010;border:0;padding:10px 14px;margin-right:12px;font:11px "DM Mono";letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
 .photo-hint{font-size:12px;color:var(--mu);line-height:1.6}
 @media(max-width:680px){.photo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.photo-add{width:100%}.admin-photo-toolbar select{width:100%}}
 
@@ -173,9 +177,19 @@ function renderPhotoManager(body){
     body.innerHTML="<div class=\"photo-empty\">Create a project first. Its photos can be managed here.</div>";
     return;
   }
-  body.innerHTML="<div class=\"admin-card\"><span class=\"mono\">PHOTO LIBRARY</span><p class=\"photo-hint\" style=\"margin-top:8px\">Choose a project, then add images from this device. You can replace, reorder or remove each photo at any time.</p><div class=\"admin-photo-toolbar\"><select id=\"photoProjectSelect\" aria-label=\"Choose project\">"+options+"</select><label class=\"photo-add\">+ ADD PHOTOS<input id=\"photoInput\" type=\"file\" accept=\"image/jpeg,image/png,image/webp,image/avif\" multiple></label></div><p class=\"photo-hint\">JPEG, PNG, WebP or AVIF · Up to 50 MB per image · Photos upload directly to storage.</p><p id=\"photoStatus\" class=\"photo-status\" role=\"status\"></p><div id=\"photoGallery\"></div></div>";
-  $("#photoProjectSelect").onchange=e=>{photoProjectId=e.target.value;renderPhotoGallery()};
-  $("#photoInput").onchange=e=>{const files=Array.from(e.target.files||[]);e.target.value="";if(files.length)uploadProjectPhotos(photoManagerProject(),files)};
+  body.innerHTML="<div class=\"admin-card\"><span class=\"mono\">PHOTO LIBRARY</span><p class=\"photo-hint\" style=\"margin-top:8px\">Choose a project, then add images from this device. You can replace, reorder or remove each photo at any time.</p><div class=\"admin-photo-toolbar\"><select id=\"photoProjectSelect\" aria-label=\"Choose project\">"+options+"</select></div><div class=\"photo-picker-row\"><span class=\"photo-picker-title\">ADD PHOTOS FROM THIS DEVICE</span><input id=\"photoInput\" class=\"photo-file-input\" type=\"file\" accept=\"image/jpeg,image/png,image/webp,image/avif\" multiple aria-label=\"Choose photos to upload\" aria-describedby=\"photoStatus\"></div><p class=\"photo-hint\">JPEG, PNG, WebP or AVIF · Up to 50 MB per image · Photos upload directly to storage.</p><p id=\"photoStatus\" class=\"photo-status\" role=\"status\"></p><div id=\"photoGallery\"></div></div>";
+  $("#photoProjectSelect").addEventListener("change",e=>{photoProjectId=e.target.value;renderPhotoGallery()});
+  const photoInput=$("#photoInput");
+  photoInput.addEventListener("change",event=>{
+    const files=Array.from(event.currentTarget.files||[]);
+    event.currentTarget.value="";
+    if(!files.length){photoStatus("No photos selected.");return}
+    photoStatus(files.length+" photo(s) selected. Starting upload…");
+    uploadProjectPhotos(photoManagerProject(),files).catch(error=>{
+      console.error("Photo upload failed:",error);
+      photoStatus("Upload failed: "+String(error.message||error));
+    });
+  });
   renderPhotoGallery();
 }
 function renderPhotoGallery(){
@@ -196,7 +210,13 @@ function renderPhotoGallery(){
     if(action==="replace"){
       const picker=document.createElement("input");
       picker.type="file";picker.accept="image/jpeg,image/png,image/webp,image/avif";
-      picker.onchange=()=>{const file=picker.files&&picker.files[0];if(file)uploadProjectPhotos(p,[file],index)};
+      picker.style.cssText="position:fixed;left:-10000px;top:0";
+      picker.addEventListener("change",()=>{
+        const file=picker.files&&picker.files[0];
+        picker.remove();
+        if(file)uploadProjectPhotos(p,[file],index);
+      },{once:true});
+      document.body.appendChild(picker);
       picker.click();return;
     }
     if(action==="delete"){
@@ -263,7 +283,14 @@ async function deleteStoredPhoto(url,projectId){
 async function uploadProjectPhotos(project,files,replaceIndex=null){
   if(photoBusy){photoStatus("Another photo operation is in progress.");return}
   photoBusy=true;
-  try{await uploadProjectPhotosCore(project,files,replaceIndex)}finally{photoBusy=false}
+  try{
+    await uploadProjectPhotosCore(project,files,replaceIndex);
+  }catch(error){
+    console.error("Photo upload failed:",error);
+    photoStatus("Upload failed: "+String(error.message||error));
+  }finally{
+    photoBusy=false;
+  }
 }
 async function uploadProjectPhotosCore(project,files,replaceIndex=null){
   if(!admin||!dbReady||!project){photoStatus("Log in as admin and choose a project before uploading.");return}

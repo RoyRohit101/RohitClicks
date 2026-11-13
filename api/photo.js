@@ -1,5 +1,5 @@
-const { del } = require('@vercel/blob');
-const { handleUpload } = require('@vercel/blob/client');
+const { del, issueSignedToken } = require('@vercel/blob');
+const { handleUploadPresigned } = require('@vercel/blob/client');
 const L = require('./_lib');
 
 const MAX_PHOTO_BYTES = 50 * 1024 * 1024;
@@ -62,25 +62,27 @@ module.exports = async (req, res) => {
     }
   }
 
-  if (body.type !== 'blob.generate-client-token' && body.type !== 'blob.upload-completed') {
+  if (body.type !== 'blob.generate-presigned-url' && body.type !== 'blob.upload-completed') {
     return res.status(400).json({
       ok: false,
-      error: 'Invalid Vercel Blob request. The upload authorization payload was not parsed correctly.'
+      error: 'Invalid Vercel Blob request. Expected a presigned upload event.'
     });
   }
 
   try {
-    const result = await handleUpload({
+    const result = await handleUploadPresigned({
       body,
       request: req,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
+      getSignedToken: async (pathname, clientPayload) => {
         if (!L.isAdmin(req)) {
           throw new Error('Your admin session has expired. Log in again.');
         }
+
         const limit = L.checkRateLimit(req, 'photo-upload', 60, 600000);
         if (!limit.allowed) {
           throw new Error('Too many photo uploads. Please wait before uploading more.');
         }
+
         const projectId = String(clientPayload || '');
         if (!safeId(projectId)) {
           throw new Error('Invalid project. Please choose a project and try again.');
@@ -93,11 +95,22 @@ module.exports = async (req, res) => {
           throw new Error('Invalid photo path.');
         }
 
-        return {
+        // issueSignedToken uses Vercel OIDC + BLOB_STORE_ID when the store is
+        // connected with OIDC. It does not require the legacy RW token.
+        const token = await issueSignedToken({
+          pathname: safePath,
+          operations: ['put'],
+          validUntil: Date.now() + 5 * 60 * 1000,
           allowedContentTypes: Array.from(TYPES),
-          maximumSizeInBytes: MAX_PHOTO_BYTES,
-          addRandomSuffix: true,
-          tokenPayload: JSON.stringify({ projectId })
+          maximumSizeInBytes: MAX_PHOTO_BYTES
+        });
+
+        return {
+          token,
+          urlOptions: {
+            addRandomSuffix: true,
+            tokenPayload: JSON.stringify({ projectId })
+          }
         };
       },
       onUploadCompleted: async ({ blob, tokenPayload }) => {

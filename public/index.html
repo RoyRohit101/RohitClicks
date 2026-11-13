@@ -255,9 +255,9 @@ function renderPhotoGallery(){
 let blobClientPromise=null;
 function loadBlobClient(){
   if(!blobClientPromise){
-    blobClientPromise=import("https://esm.sh/@vercel/blob@2.9.0?bundle")
+    blobClientPromise=import("https://esm.sh/@vercel/blob@2.9.0/client?bundle")
       .then(module=>{
-        if(typeof module.put!=="function")throw new Error("The Vercel Blob upload library did not load correctly.");
+        if(typeof module.uploadPresigned!=="function")throw new Error("The OIDC-compatible Vercel Blob uploader did not load correctly.");
         return module;
       })
       .catch(error=>{
@@ -268,37 +268,15 @@ function loadBlobClient(){
   return blobClientPromise;
 }
 async function uploadPhotoToBlob(file,project,onProgress){
-  const blobSdk=await loadBlobClient();
+  const client=await loadBlobClient();
   const originalName=String(file.name||"photo").normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g,"-").replace(/^-+|-+$/g,"").slice(-90)||"photo";
   const unique=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now()+"-"+Math.random().toString(36).slice(2);
   const pathname="rohitclicks/photos/"+project.id+"/"+unique+"-"+originalName;
-  const multipart=file.size>8*1024*1024;
-  const tokenResponse=await fetch("/api/photo",{
-    method:"POST",
-    credentials:"same-origin",
-    headers:{"content-type":"application/json"},
-    body:JSON.stringify({
-      type:"blob.generate-client-token",
-      payload:{
-        pathname,
-        callbackUrl:new URL("/api/photo",location.origin).href,
-        clientPayload:project.id,
-        multipart
-      }
-    })
-  });
-  const tokenResult=await tokenResponse.json().catch(()=>({}));
-  if(!tokenResponse.ok){
-    const serverMessage=tokenResult.error||tokenResult.details||"The server rejected the upload authorization request.";
-    throw new Error("Upload authorization failed (HTTP "+tokenResponse.status+"): "+String(serverMessage).slice(0,260));
-  }
-  if(typeof tokenResult.clientToken!=="string"||!tokenResult.clientToken){
-    throw new Error("The server response did not contain a Vercel Blob client token. Please check the upload API response.");
-  }
-  const blob=await blobSdk.put(pathname,file,{
+  const blob=await client.uploadPresigned(pathname,file,{
     access:"public",
-    token:tokenResult.clientToken,
-    multipart,
+    handleUploadUrl:"/api/photo",
+    clientPayload:project.id,
+    multipart:file.size>8*1024*1024,
     onUploadProgress:progress=>{
       if(onProgress)onProgress(Math.round(progress.percentage||0));
     }

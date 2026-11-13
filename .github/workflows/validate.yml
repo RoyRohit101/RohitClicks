@@ -17,7 +17,7 @@ jobs:
       - name: Install and verify Vercel Blob SDK
         run: |
           npm install --ignore-scripts --no-audit --no-fund --package-lock=false
-          node -e "const blob = require('@vercel/blob'); for (const name of ['issueSignedToken','presignUrl','parseStoreIdFromDelegationToken','del']) { if (typeof blob[name] !== 'function') throw new Error('Missing @vercel/blob export: ' + name); }"
+          node --input-type=module -e "const blob = await import('@vercel/blob'); const client = await import('@vercel/blob/client'); for (const [name, value] of [['del', blob.del], ['handleUpload', client.handleUpload]]) { if (typeof value !== 'function') throw new Error('Missing @vercel/blob export: ' + name); }"
       - name: Check API JavaScript syntax
         run: |
           for file in api/*.js; do
@@ -52,6 +52,9 @@ jobs:
           grep -q "ADD PHOTOS" public/index.html
           grep -q "REPLACE" public/index.html
           grep -q "DELETE" public/index.html
-          grep -q "issueSignedToken" api/photo.js
+          grep -q "handleUpload" api/photo.js
+          grep -q "client.upload(pathname,file" public/index.html
+          grep -q "https://esm.sh/@vercel/blob@2.9.0/client?bundle" public/index.html
           grep -q '"@vercel/blob":"^2.9.0"' package.json
+          grep -q "maximumSizeInBytes: MAX_PHOTO_BYTES" api/photo.js
           grep -q "IMG2" public/index.html

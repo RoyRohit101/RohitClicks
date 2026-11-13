@@ -1,0 +1,46 @@
+name: Validate portfolio
+
+on:
+  push:
+    branches: ["main", "fix/admin-project-manager"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check API JavaScript syntax
+        run: |
+          for file in api/*.js; do
+            echo "Checking $file"
+            node --check "$file"
+          done
+      - name: Check inline browser scripts
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path("public/index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script>(.*?)</script>", html, flags=re.S)
+          if not scripts:
+              raise SystemExit("No inline scripts found")
+          for index, script in enumerate(scripts):
+              Path(f"/tmp/portfolio-script-{index}.js").write_text(script, encoding="utf-8")
+          print(f"Extracted {len(scripts)} inline script(s)")
+          PY
+          for file in /tmp/portfolio-script-*.js; do
+            echo "Checking $file"
+            node --check "$file"
+          done
+      - name: Check required admin and no-upload behavior
+        run: |
+          grep -q "Studio dashboard" public/index.html
+          grep -q "NEW PROJECT" public/index.html
+          grep -q "featured" public/index.html
+          test ! -e api/upload.js
+          ! grep -q "IMG2" public/index.html

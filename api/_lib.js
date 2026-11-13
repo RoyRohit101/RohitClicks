@@ -10,27 +10,35 @@ const loginCode = (email, window) =>
   String(parseInt(hmac(email + ':' + window).slice(0, 8), 16) % 1000000).padStart(6, '0');
 
 function safeEqual(a, b) {
-  if (typeof a !== 'string' || typeof b !== 'string' || !/^[a-f0-9]+$/i.test(a) || !/^[a-f0-9]+$/i.test(b)) return false;
+  if (typeof a !== 'string' || typeof b !== 'string' ||
+      !/^[a-f0-9]+$/i.test(a) || !/^[a-f0-9]+$/i.test(b)) return false;
   const left = Buffer.from(a, 'hex');
   const right = Buffer.from(b, 'hex');
+  return left.length === right.length && left.length > 0 && crypto.timingSafeEqual(left, right);
+}
+
+function constantTimeTextEqual(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') return false;
+  const left = Buffer.from(a, 'utf8');
+  const right = Buffer.from(b, 'utf8');
   return left.length === right.length && left.length > 0 && crypto.timingSafeEqual(left, right);
 }
 
 function readCookie(req, name) {
   const header = req.headers && req.headers.cookie;
   if (!header) return '';
-  const entry = header.split(/;\\s*/).find(part => part.startsWith(name + '='));
+  const entry = header.split(/;\s*/).find(part => part.startsWith(name + '='));
   return entry ? entry.slice(name.length + 1) : '';
 }
 
 function isAdmin(req) {
   if (!SECRET) return false;
   const [expires, signature, extra] = readCookie(req, 'adm').split('.');
-  if (!expires || !signature || extra || !/^\\d+$/.test(expires) || Number(expires) <= Date.now()) return false;
+  if (!expires || !signature || extra || !/^\d+$/.test(expires) || Number(expires) <= Date.now()) return false;
   return safeEqual(hmac('adm' + expires), signature);
 }
 
-function constantTimeTextEqual(a, b) {\n  if (typeof a !== 'string' || typeof b !== 'string') return false;\n  const left = Buffer.from(a, 'utf8');\n  const right = Buffer.from(b, 'utf8');\n  return left.length === right.length && left.length > 0 && crypto.timingSafeEqual(left, right);\n}\n\nfunction sessionToken() {
+function sessionToken() {
   const expires = String(Date.now() + 7 * 86400000);
   return expires + '.' + hmac('adm' + expires);
 }
@@ -50,7 +58,7 @@ function checkRateLimit(req, bucket, max = 6, periodMs = 600000) {
   return { allowed: prior.count <= max, retryAfter: Math.max(1, Math.ceil((prior.resetAt - now) / 1000)) };
 }
 
-async function sendMail(subject, text, replyTo) {
+async function sendMail(subject, body, replyTo) {
   if (!process.env.RESEND_API_KEY || !ADMIN_EMAIL) throw new Error('Email service is not configured');
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -61,8 +69,8 @@ async function sendMail(subject, text, replyTo) {
     body: JSON.stringify({
       from: 'Rohit Clicks <onboarding@resend.dev>',
       to: [ADMIN_EMAIL],
-      subject: String(subject).replace(/[\\r\\n]/g, ' ').slice(0, 160),
-      text: String(text).slice(0, 12000),
+      subject: String(subject).replace(/[\r\n]/g, ' ').slice(0, 160),
+      text: String(body).slice(0, 12000),
       ...(replyTo ? { reply_to: replyTo } : {})
     })
   });
@@ -76,6 +84,7 @@ module.exports = {
   windowId,
   loginCode,
   isAdmin,
+  constantTimeTextEqual,
   sessionToken,
   sendMail,
   checkRateLimit

@@ -2,7 +2,7 @@ name: Validate portfolio
 
 on:
   push:
-    branches: ["main", "fix/admin-project-manager"]
+    branches: ["main", "fix/admin-project-manager", "feat/admin-photo-manager"]
   pull_request:
     branches: ["main"]
 
@@ -14,6 +14,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+      - name: Install and verify Vercel Blob SDK
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund --package-lock=false
+          node -e "const blob = require('@vercel/blob'); for (const name of ['issueSignedToken','presignUrl','parseStoreIdFromDelegationToken','del']) { if (typeof blob[name] !== 'function') throw new Error('Missing @vercel/blob export: ' + name); }"
       - name: Check API JavaScript syntax
         run: |
           for file in api/*.js; do
@@ -37,11 +41,17 @@ jobs:
             echo "Checking $file"
             node --check "$file"
           done
-      - name: Check required admin and no-upload behavior
+      - name: Check admin and photo manager behavior
         run: |
           grep -q "Studio dashboard" public/index.html
           grep -q "NEW PROJECT" public/index.html
           grep -q "featured" public/index.html
           test ! -e api/upload.js
+          test -f api/photo.js
+          grep -q "Photos" public/index.html
+          grep -q "ADD PHOTOS" public/index.html
+          grep -q "REPLACE" public/index.html
+          grep -q "DELETE" public/index.html
+          grep -q "issueSignedToken" api/photo.js
+          grep -q '"@vercel/blob":"^2.9.0"' package.json
           grep -q "IMG2" public/index.html
-          ! grep -q "ADD PHOTOS" public/index.html

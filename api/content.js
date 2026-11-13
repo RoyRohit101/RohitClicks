@@ -70,7 +70,7 @@ module.exports = async (req, res) => {
         allowOverwrite: true,
         addRandomSuffix: false,
         contentType: 'application/json',
-        cacheControlMaxAge: 0
+        cacheControlMaxAge: 60
       });
       return res.status(200).json({ ok: true });
     }

@@ -6,8 +6,9 @@ A static photography and cinematography portfolio for Rohit Roy, with Vercel ser
 
 1. Install Node.js and run `npm install`.
 2. Link the repository to a Vercel project.
-3. Create a Vercel Blob store and connect it to the project. This supplies `BLOB_READ_WRITE_TOKEN` (or configure the supported Vercel Blob OIDC connection).
-4. Add these Production environment variables in Vercel:
+3. Create a Vercel Blob store and connect it to the project. Select the **Production** environment for the Blob credentials. This supplies `BLOB_READ_WRITE_TOKEN` (or configure the supported Vercel Blob OIDC connection).
+4. After connecting or changing the Blob store, **redeploy the project**. Environment-variable changes do not apply to deployments that were already built.
+5. Add these Production environment variables in Vercel:
    - `ADMIN_EMAIL`: the email address allowed to access the admin dashboard.
    - `AUTH_SECRET`: a long, private random secret used to sign one-time codes and admin sessions.
    - `RESEND_API_KEY`: an API key from Resend for login codes and contact enquiries.

@@ -17,7 +17,7 @@ jobs:
       - name: Install and verify Vercel Blob SDK
         run: |
           npm install --ignore-scripts --no-audit --no-fund --package-lock=false
-          node --input-type=module -e "const blob = await import('@vercel/blob'); const client = await import('@vercel/blob/client'); for (const [name, value] of [['del', blob.del], ['put', blob.put], ['handleUpload', client.handleUpload]]) { if (typeof value !== 'function') throw new Error('Missing @vercel/blob export: ' + name); }"
+          node --input-type=module -e "const blob = await import('@vercel/blob'); const client = await import('@vercel/blob/client'); for (const [name, value] of [['del', blob.del], ['issueSignedToken', blob.issueSignedToken], ['handleUploadPresigned', client.handleUploadPresigned], ['uploadPresigned', client.uploadPresigned]]) { if (typeof value !== 'function') throw new Error('Missing @vercel/blob export: ' + name); }"
       - name: Check API JavaScript syntax
         run: |
           for file in api/*.js; do
@@ -52,10 +52,11 @@ jobs:
           grep -q "ADD PHOTOS" public/index.html
           grep -q "REPLACE" public/index.html
           grep -q "DELETE" public/index.html
-          grep -q "handleUpload" api/photo.js
-          grep -q "blobSdk.put(pathname,file" public/index.html
-          grep -q "https://esm.sh/@vercel/blob@2.9.0?bundle" public/index.html
-          grep -q "blob.generate-client-token" public/index.html
+          grep -q "handleUploadPresigned" api/photo.js
+grep -q "issueSignedToken" api/photo.js
+          grep -q "client.uploadPresigned(pathname,file" public/index.html
+          grep -q "https://esm.sh/@vercel/blob@2.9.0/client?bundle" public/index.html
+          grep -q "blob.generate-presigned-url" api/photo.js
           grep -q 'credentials:"same-origin"' public/index.html
           grep -q '"@vercel/blob":"^2.9.0"' package.json
           grep -q "maximumSizeInBytes: MAX_PHOTO_BYTES" api/photo.js

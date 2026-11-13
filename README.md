@@ -6,7 +6,7 @@ A static photography and cinematography portfolio for Rohit Roy, with Vercel ser
 
 1. Install Node.js and run `npm install`.
 2. Link the repository to a Vercel project.
-3. Create a Vercel Blob store and connect it to the project. Select the **Production** environment for the Blob credentials. This supplies `BLOB_READ_WRITE_TOKEN` (or configure the supported Vercel Blob OIDC connection).
+3. Create a public Vercel Blob store and connect it to the project for **Production**. Current Vercel connections may use OIDC and supply `BLOB_STORE_ID` plus `BLOB_WEBHOOK_PUBLIC_KEY`; this repository uses OIDC-compatible signed client uploads, so a legacy `BLOB_READ_WRITE_TOKEN` is not required.
 4. After connecting or changing the Blob store, **redeploy the project**. Environment-variable changes do not apply to deployments that were already built.
 5. Add these Production environment variables in Vercel:
    - `ADMIN_EMAIL`: the email address allowed to access the admin dashboard.
@@ -37,7 +37,7 @@ The dashboard includes:
 
 Open the **Photos** tab while logged in as admin. Choose a project and select **Add photos** to pick one or many images from the device you're using. Each photo can be previewed, replaced, moved earlier/later, or deleted.
 
-Supported formats: JPEG, PNG, WebP and AVIF. Each file can be up to 50 MB. Uploads use the official `@vercel/blob/client` browser helper and the official `handleUpload` server handshake. The browser SDK is loaded from the pinned `esm.sh` CDN URL; allow this CDN in browser/network settings. The admin browser explicitly requests a short-lived upload token from `/api/photo` and uses it for the direct-to-Blob transfer. The long-lived Blob storage credential stays on the server.
+Supported formats: JPEG, PNG, WebP and AVIF. Each file can be up to 50 MB. Uploads use the official `@vercel/blob/client` `uploadPresigned` helper and the `handleUploadPresigned` server handler. The server issues short-lived path-scoped signed URLs using Vercel OIDC, so the flow works with modern OIDC-only Blob connections and does not require a legacy `BLOB_READ_WRITE_TOKEN`. The browser SDK is loaded from a pinned `esm.sh` CDN URL; allow this CDN in browser/network settings.
 
 Deleting a photo removes its reference from the project and asks the Blob API to delete the stored file. Replacing a photo saves the new URL before attempting to remove the previous stored file. If storage cleanup fails, the portfolio still reflects the saved gallery change and the dashboard reports the cleanup issue.
 

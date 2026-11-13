@@ -53,11 +53,11 @@ jobs:
           grep -q "REPLACE" public/index.html
           grep -q "DELETE" public/index.html
           grep -q "handleUploadPresigned" api/photo.js
-grep -q "issueSignedToken" api/photo.js
+          grep -q "issueSignedToken" api/photo.js
           grep -q "client.uploadPresigned(pathname,file" public/index.html
           grep -q "https://esm.sh/@vercel/blob@2.9.0/client?bundle" public/index.html
           grep -q "blob.generate-presigned-url" api/photo.js
-          grep -q 'credentials:"same-origin"' public/index.html
+          grep -q 'handleUploadUrl:"/api/photo"' public/index.html
           grep -q '"@vercel/blob":"^2.9.0"' package.json
           grep -q "maximumSizeInBytes: MAX_PHOTO_BYTES" api/photo.js
           grep -q "IMG2" public/index.html

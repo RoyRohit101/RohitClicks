@@ -92,7 +92,7 @@ const CATS=["weddings","events","fashion","jewellery","commercial","creative"];
 const DEFAULT_PROJECTS=[["Wedding Stories","weddings"],["Social Events","events"],["Concert","events"],["Cultural Celebrations","events"],["Fashion","fashion"],["Jewellery Editorial","jewellery"],["Model United Nations","creative"],["Café & Hospitality","commercial"]].map((p,i)=>({id:"p"+i,title:p[0],cat:p[1],ph:[],published:true,featured:i<3,order:i,year:"",client:"",location:"",summary:"",description:"",services:[],tags:[],projectUrl:"",videoUrl:""}));
 const DEFAULT_SETTINGS={brand:"Cinematic Overthinker",email:MAIL,whatsapp:WA,instagram:IG,location:"Kolkata, India"};
 let D={texts:{},settings:{...DEFAULT_SETTINGS},projects:DEFAULT_PROJECTS.map(p=>({...p}))};
-let admin=false,dbReady=false,saveChain=Promise.resolve(),filt="all",adminTab="overview",io=null,photoProjectId="";
+let admin=false,dbReady=false,saveChain=Promise.resolve(),filt="all",adminTab="overview",io=null,photoProjectId="",photoBusy=false;
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const plain=v=>String(v??"").replace(/<br\s*\/?>/gi,"\n").replace(/<\/p\s*>/gi,"\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ");
@@ -205,9 +205,10 @@ function renderPhotoGallery(){
       p.ph.splice(index,1);
       const saved=await sv();
       if(!saved){p.ph.splice(index,0,oldUrl);photoStatus("Could not save the change. The photo is still in the project.");renderPhotoGallery();return}
-      try{await deleteStoredPhoto(oldUrl,p.id);photoStatus("Photo deleted.");}
-      catch(error){photoStatus("Removed from the portfolio, but storage cleanup failed: "+error.message)}
-      render();renderAdmin("photos");return;
+      let message="Photo deleted.";
+      try{await deleteStoredPhoto(oldUrl,p.id)}
+      catch(error){message="Removed from the portfolio, but storage cleanup failed: "+error.message}
+      render();renderAdmin("photos");photoStatus(message);return;
     }
     const next=action==="up"?index-1:index+1;
     if(next<0||next>=p.ph.length)return;
@@ -249,6 +250,11 @@ async function deleteStoredPhoto(url,projectId){
   if(!response.ok||!result.ok)throw new Error(result.error||"Could not delete the stored image");
 }
 async function uploadProjectPhotos(project,files,replaceIndex=null){
+  if(photoBusy){photoStatus("Another photo operation is in progress.");return}
+  photoBusy=true;
+  try{await uploadProjectPhotosCore(project,files,replaceIndex)}finally{photoBusy=false}
+}
+async function uploadProjectPhotosCore(project,files,replaceIndex=null){
   if(!admin||!dbReady||!project){photoStatus("Log in as admin and choose a project before uploading.");return}
   const selected=replaceIndex===null?files:files.slice(0,1);
   const valid=selected.filter(file=>{
@@ -258,16 +264,20 @@ async function uploadProjectPhotos(project,files,replaceIndex=null){
     return accepted&&file.size>0&&file.size<=50*1024*1024;
   });
   if(!valid.length)return;
+  const remaining=replaceIndex===null?Math.max(0,60-(project.ph||[]).length):1;
+  const uploadFiles=valid.slice(0,remaining);
+  if(!uploadFiles.length){photoStatus("This project already has 60 photos. Replace or delete one to add another.");return}
+  if(uploadFiles.length<valid.length)photoStatus("This project can hold up to 60 photos. Uploading the available slots.");
   const original=(project.ph||[]).slice(),uploaded=[];
-  photoStatus("Preparing "+valid.length+" photo(s)…");
-  for(let index=0;index<valid.length;index++){
-    const file=valid[index];
+  photoStatus("Preparing "+uploadFiles.length+" photo(s)…");
+  for(let index=0;index<uploadFiles.length;index++){
+    const file=uploadFiles[index];
     try{
       const url=await uploadPhotoToBlob(file,project,percent=>{
-        photoStatus("Uploading "+(index+1)+" of "+valid.length+" · "+percent+"%");
+        photoStatus("Uploading "+(index+1)+" of "+uploadFiles.length+" · "+percent+"%");
       });
       uploaded.push(url);
-      photoStatus("Uploaded "+(index+1)+" of "+valid.length);
+      photoStatus("Uploaded "+(index+1)+" of "+uploadFiles.length);
     }catch(error){
       photoStatus("Upload stopped: "+error.message);
       break;
@@ -283,17 +293,17 @@ async function uploadProjectPhotos(project,files,replaceIndex=null){
     photoStatus("Photos uploaded, but the project could not be saved. Please try again.");
     renderPhotoGallery();return;
   }
+  let completionMessage=replaceIndex===null?uploaded.length+" photo(s) added.":"Photo replaced.";
   if(replaceIndex!==null&&original[replaceIndex]){
     try{await deleteStoredPhoto(original[replaceIndex],project.id)}
-    catch(error){photoStatus("Photo replaced. The previous file could not be cleaned up: "+error.message)}
+    catch(error){completionMessage="Photo replaced. The previous file could not be cleaned up: "+error.message}
   }
   render();
   renderAdmin("photos");
-  if(replaceIndex===null)photoStatus(uploaded.length+" photo(s) added.");
-  else if(!$("#photoStatus")?.textContent)photoStatus("Photo replaced.");
+  photoStatus(completionMessage);
 }
 
-function renderProjectRows(){const list=$("#projectList");if(!list)return;const q=$("#projectSearch").value.trim().toLowerCase(),cat=$("#projectCategory").value,state=$("#projectStatus").value,items=D.projects.filter(p=>(cat==="all"||p.cat===cat)&&(state==="all"||(state==="published"&&p.published)||(state==="draft"&&!p.published)||(state==="featured"&&p.featured))&&[p.title,p.client,p.summary,p.tags.join(" ")].join(" ").toLowerCase().includes(q));$("#projectCount").textContent=items.length+" project(s) shown · "+D.projects.length+" total";list.innerHTML=items.map(p=>"<div class=\"admin-project\"><div><h3>"+esc(p.title)+"</h3><p class=\"admin-muted\">"+esc(p.cat)+" · "+esc(p.year||"Year not set")+" · "+(p.published?"Published":"Draft")+(p.featured?" · Featured":"")+(p.client?" · "+esc(p.client):"")+"</p><p class=\"admin-muted\">"+esc(p.summary||"No summary added yet.")+"</p></div><div class=\"admin-project-actions\"><button class=\"admin-action\" data-action=\"edit\" data-id=\""+esc(p.id)+"\">Edit</button><button class=\"admin-action\" data-action=\"publish\" data-id=\""+esc(p.id)+"\">"+(p.published?"Unpublish":"Publish")+"</button><button class=\"admin-action\" data-action=\"feature\" data-id=\""+esc(p.id)+"\">"+(p.featured?"Unfeature":"Feature")+"</button><button class=\"admin-action\" data-action=\"up\" data-id=\""+esc(p.id)+"\">↑</button><button class=\"admin-action\" data-action=\"down\" data-id=\""+esc(p.id)+"\">↓</button><button class=\"admin-action\" data-action=\"duplicate\" data-id=\""+esc(p.id)+"\">Duplicate</button><button class=\"admin-action\" data-action=\"delete\" data-id=\""+esc(p.id)+"\">Delete</button></div></div>").join("")||"<p class=\"admin-muted\" style=\"padding:22px 0\">No projects match these filters. Add a new project or change the search.</p>";list.onclick=e=>{const b=e.target.closest("[data-action]");if(!b)return;const p=D.projects.find(x=>x.id===b.dataset.id);if(!p)return;const a=b.dataset.action;if(a==="edit")return openProjectEditor(p.id);if(a==="delete"){if(!confirm("Delete "+p.title+"? This cannot be undone."))return;D.projects=D.projects.filter(x=>x.id!==p.id)}if(a==="duplicate")D.projects.unshift(normalProject({...p,id:"p"+Date.now(),title:p.title+" (Copy)",published:false,featured:false,createdAt:new Date().toISOString()},D.projects.length));if(a==="publish")p.published=!p.published;if(a==="feature")p.featured=!p.featured;if(a==="up"||a==="down"){const i=D.projects.indexOf(p),j=a==="up"?i-1:i+1;if(j>=0&&j<D.projects.length)[D.projects[i],D.projects[j]]=[D.projects[j],D.projects[i]]}sv().then(()=>renderAdmin("projects"))}}
+function renderProjectRows(){const list=$("#projectList");if(!list)return;const q=$("#projectSearch").value.trim().toLowerCase(),cat=$("#projectCategory").value,state=$("#projectStatus").value,items=D.projects.filter(p=>(cat==="all"||p.cat===cat)&&(state==="all"||(state==="published"&&p.published)||(state==="draft"&&!p.published)||(state==="featured"&&p.featured))&&[p.title,p.client,p.summary,p.tags.join(" ")].join(" ").toLowerCase().includes(q));$("#projectCount").textContent=items.length+" project(s) shown · "+D.projects.length+" total";list.innerHTML=items.map(p=>"<div class=\"admin-project\"><div><h3>"+esc(p.title)+"</h3><p class=\"admin-muted\">"+esc(p.cat)+" · "+esc(p.year||"Year not set")+" · "+(p.published?"Published":"Draft")+(p.featured?" · Featured":"")+(p.client?" · "+esc(p.client):"")+"</p><p class=\"admin-muted\">"+esc(p.summary||"No summary added yet.")+"</p></div><div class=\"admin-project-actions\"><button class=\"admin-action\" data-action=\"edit\" data-id=\""+esc(p.id)+"\">Edit</button><button class=\"admin-action\" data-action=\"photos\" data-id=\""+esc(p.id)+"\">Photos</button><button class=\"admin-action\" data-action=\"publish\" data-id=\""+esc(p.id)+"\">"+(p.published?"Unpublish":"Publish")+"</button><button class=\"admin-action\" data-action=\"feature\" data-id=\""+esc(p.id)+"\">"+(p.featured?"Unfeature":"Feature")+"</button><button class=\"admin-action\" data-action=\"up\" data-id=\""+esc(p.id)+"\">↑</button><button class=\"admin-action\" data-action=\"down\" data-id=\""+esc(p.id)+"\">↓</button><button class=\"admin-action\" data-action=\"duplicate\" data-id=\""+esc(p.id)+"\">Duplicate</button><button class=\"admin-action\" data-action=\"delete\" data-id=\""+esc(p.id)+"\">Delete</button></div></div>").join("")||"<p class=\"admin-muted\" style=\"padding:22px 0\">No projects match these filters. Add a new project or change the search.</p>";list.onclick=e=>{const b=e.target.closest("[data-action]");if(!b)return;const p=D.projects.find(x=>x.id===b.dataset.id);if(!p)return;const a=b.dataset.action;if(a==="edit")return openProjectEditor(p.id);if(a==="photos"){photoProjectId=p.id;return renderAdmin("photos")}if(a==="delete"){if(!confirm("Delete "+p.title+"? This cannot be undone."))return;D.projects=D.projects.filter(x=>x.id!==p.id)}if(a==="duplicate")D.projects.unshift(normalProject({...p,id:"p"+Date.now(),title:p.title+" (Copy)",published:false,featured:false,createdAt:new Date().toISOString()},D.projects.length));if(a==="publish")p.published=!p.published;if(a==="feature")p.featured=!p.featured;if(a==="up"||a==="down"){const i=D.projects.indexOf(p),j=a==="up"?i-1:i+1;if(j>=0&&j<D.projects.length)[D.projects[i],D.projects[j]]=[D.projects[j],D.projects[i]]}sv().then(()=>renderAdmin("projects"))}}
 function openProjectEditor(id){if(!admin)return;const old=id?D.projects.find(p=>p.id===id):null,p=old||{id:"",title:"",cat:"events",year:new Date().getFullYear().toString(),client:"",location:settings().location,summary:"",description:"",services:[],tags:[],projectUrl:"",videoUrl:"",featured:false,published:true,order:D.projects.length,ph:[]},body=$("#adminBody");let categoryOptions=CATS.map(c=>"<option value=\""+c+"\" "+(p.cat===c?"selected":"")+">"+c+"</option>").join("");body.innerHTML="<div class=\"admin-card\"><span class=\"mono\">"+(old?"EDIT PROJECT":"NEW PROJECT")+"</span><h3 style=\"margin:10px 0 4px\">"+(old?"Update project details":"Add a project to your portfolio")+"</h3><p class=\"admin-muted\">You can manage this project’s gallery from the Photos tab. Uploads are available only while you are logged into the admin dashboard.</p><form id=\"projectForm\" class=\"admin-form\"><label>Project title *<input name=\"title\" maxlength=\"120\" value=\""+esc(p.title)+"\" required></label><label>Category<select name=\"cat\">"+categoryOptions+"</select></label><label>Client / brand<input name=\"client\" maxlength=\"120\" value=\""+esc(p.client)+"\"></label><label>Year<input name=\"year\" type=\"number\" min=\"1900\" max=\"2200\" value=\""+esc(p.year)+"\"></label><label>Location<input name=\"location\" maxlength=\"120\" value=\""+esc(p.location)+"\"></label><label>Display order<input name=\"order\" type=\"number\" value=\""+esc(p.order)+"\"></label><label class=\"wide\">Short summary<input name=\"summary\" maxlength=\"240\" value=\""+esc(p.summary)+"\"></label><label class=\"wide\">Project description<textarea name=\"description\" maxlength=\"4000\">"+esc(p.description)+"</textarea></label><label>Services delivered<input name=\"services\" value=\""+esc(p.services.join(", "))+"\" placeholder=\"Photography, cinematography, editing\"></label><label>Tags<input name=\"tags\" value=\""+esc(p.tags.join(", "))+"\" placeholder=\"Wedding, editorial, Kolkata\"></label><label>External project URL<input name=\"projectUrl\" type=\"url\" value=\""+esc(p.projectUrl)+"\" placeholder=\"https://...\"></label><label>Film / video URL<input name=\"videoUrl\" type=\"url\" value=\""+esc(p.videoUrl)+"\" placeholder=\"https://...\"></label><div class=\"admin-checks wide\"><label><input name=\"featured\" type=\"checkbox\" "+(p.featured?"checked":"")+"> Featured on homepage</label><label><input name=\"published\" type=\"checkbox\" "+(p.published?"checked":"")+"> Published on website</label></div><div class=\"admin-form-footer\"><button class=\"btn f\" type=\"submit\">SAVE PROJECT</button><button class=\"btn\" id=\"cancelProject\" type=\"button\">CANCEL</button>"+(old?"<button class=\"btn\" id=\"deleteFromEditor\" type=\"button\">DELETE PROJECT</button>":"")+"</div></form></div>";$("#cancelProject").onclick=()=>renderAdmin("projects");const f=$("#projectForm");f.onsubmit=e=>{e.preventDefault();const v=Object.fromEntries(new FormData(f));if(!v.title.trim()){alert("Project title is required.");return}const project={...p,id:old?p.id:"p"+Date.now(),title:v.title.trim(),cat:CATS.includes(v.cat)?v.cat:"creative",client:v.client.trim(),year:v.year.trim(),location:v.location.trim(),summary:v.summary.trim(),description:v.description.trim(),services:splitList(v.services),tags:splitList(v.tags),projectUrl:validHttps(v.projectUrl),videoUrl:validHttps(v.videoUrl),featured:f.elements.featured.checked,published:f.elements.published.checked,order:Number(v.order)||0,ph:old?(old.ph||[]):[],createdAt:old?(old.createdAt||""):new Date().toISOString(),updatedAt:new Date().toISOString()};if(old){const i=D.projects.findIndex(x=>x.id===old.id);D.projects[i]=normalProject(project,i)}else D.projects.push(normalProject(project,D.projects.length));D.projects.sort((a,b)=>a.order-b.order);sv().then(ok=>{if(ok){render();renderAdmin("projects")}})};const del=$("#deleteFromEditor");if(del)del.onclick=()=>{if(confirm("Delete this project?")){D.projects=D.projects.filter(x=>x.id!==old.id);sv().then(()=>renderAdmin("projects"))}}}
 async function init(){render();try{const me=await fetch("/api/me",{cache:"no-store"}).then(r=>r.ok?r.json():{admin:false});admin=!!me.admin;const r=await fetch("/api/content",{cache:"no-store"});if(r.ok){const d=await r.json();if(d&&Array.isArray(d.projects))D=normalData(d);dbReady=admin}}catch(e){console.error("Could not load site content",e)}render();if(admin)$("#ad").style.display="flex"}
 init();

@@ -30,7 +30,7 @@ function isAdmin(req) {
   return safeEqual(hmac('adm' + expires), signature);
 }
 
-function sessionToken() {
+function constantTimeTextEqual(a, b) {\n  if (typeof a !== 'string' || typeof b !== 'string') return false;\n  const left = Buffer.from(a, 'utf8');\n  const right = Buffer.from(b, 'utf8');\n  return left.length === right.length && left.length > 0 && crypto.timingSafeEqual(left, right);\n}\n\nfunction sessionToken() {
   const expires = String(Date.now() + 7 * 86400000);
   return expires + '.' + hmac('adm' + expires);
 }

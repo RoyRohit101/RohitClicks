@@ -62,6 +62,13 @@ module.exports = async (req, res) => {
     }
   }
 
+  if (body.type !== 'blob.generate-client-token' && body.type !== 'blob.upload-completed') {
+    return res.status(400).json({
+      ok: false,
+      error: 'Invalid Vercel Blob request. The upload authorization payload was not parsed correctly.'
+    });
+  }
+
   try {
     const result = await handleUpload({
       body,

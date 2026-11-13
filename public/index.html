@@ -218,26 +218,37 @@ function renderPhotoGallery(){
     render();renderAdmin("photos");
   };
 }
-function uploadPhotoToBlob(file,project,onProgress){
-  return new Promise(async(resolve,reject)=>{
-    try{
-      const tokenResponse=await fetch("/api/photo",{
-        method:"POST",
-        headers:{"content-type":"application/json"},
-        body:JSON.stringify({action:"upload",projectId:project.id,contentType:file.type,size:file.size})
+let blobClientPromise=null;
+function loadBlobClient(){
+  if(!blobClientPromise){
+    blobClientPromise=import("https://esm.sh/@vercel/blob@2.9.0/client?bundle")
+      .then(module=>{
+        if(typeof module.upload!=="function")throw new Error("The photo upload library did not load correctly.");
+        return module;
+      })
+      .catch(error=>{
+        blobClientPromise=null;
+        throw new Error("Could not load the photo upload library. Check your internet connection and retry. "+String(error.message||""));
       });
-      const tokenData=await tokenResponse.json().catch(()=>({}));
-      if(!tokenResponse.ok||!tokenData.uploadUrl)throw new Error(tokenData.error||"Could not prepare photo upload");
-      const xhr=new XMLHttpRequest();
-      xhr.open("PUT",tokenData.uploadUrl,true);
-      xhr.setRequestHeader("Content-Type",file.type);
-      xhr.upload.onprogress=event=>{if(event.lengthComputable&&onProgress)onProgress(Math.round(event.loaded/event.total*100))};
-      xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300)resolve(tokenData.url);else reject(new Error("Photo upload failed ("+xhr.status+")."))};
-      xhr.onerror=()=>reject(new Error("Network error while uploading the photo"));
-      xhr.onabort=()=>reject(new Error("Photo upload was cancelled"));
-      xhr.send(file);
-    }catch(error){reject(error)}
+  }
+  return blobClientPromise;
+}
+async function uploadPhotoToBlob(file,project,onProgress){
+  const client=await loadBlobClient();
+  const originalName=String(file.name||"photo").normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g,"-").replace(/^-+|-+$/g,"").slice(-90)||"photo";
+  const unique=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():Date.now()+"-"+Math.random().toString(36).slice(2);
+  const pathname="rohitclicks/photos/"+project.id+"/"+unique+"-"+originalName;
+  const blob=await client.upload(pathname,file,{
+    access:"public",
+    handleUploadUrl:"/api/photo",
+    clientPayload:project.id,
+    multipart:file.size>8*1024*1024,
+    onUploadProgress:progress=>{
+      if(onProgress)onProgress(Math.round(progress.percentage||0));
+    }
   });
+  if(!blob||!blob.url)throw new Error("The storage service did not return a photo URL.");
+  return blob.url;
 }
 async function deleteStoredPhoto(url,projectId){
   if(typeof url!=="string"||!url.startsWith("https://"))return;

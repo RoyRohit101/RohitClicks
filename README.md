@@ -12,7 +12,7 @@ A static photography and cinematography portfolio for Rohit Roy, with Vercel ser
    - `ADMIN_EMAIL`: the email address allowed to access the admin dashboard.
    - `AUTH_SECRET`: a long, private random secret used to sign one-time codes and admin sessions.
    - `RESEND_API_KEY`: an API key from Resend for login codes and contact enquiries.
-5. Deploy with `npx vercel --prod`.
+6. Deploy with `npx vercel --prod`.
 
 The public portfolio is served from `public/index.html`. API routes live in `api/`.
 

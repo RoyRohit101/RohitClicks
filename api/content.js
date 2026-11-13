@@ -82,6 +82,17 @@ module.exports = async (req, res) => {
     return res.status(200).json(await response.json());
   } catch (error) {
     console.error('Content API error:', error);
-    return res.status(500).json({ ok: false, error: 'Content service unavailable' });
+    // Send a short diagnostic only to the authenticated admin so storage setup
+    // problems are visible in the dashboard without exposing internals publicly.
+    const detail = L.isAdmin(req)
+      ? String(error && error.message || 'Unknown storage error')
+          .replace(/[A-Za-z0-9_-]{48,}/g, '[redacted]')
+          .slice(0, 180)
+      : '';
+    return res.status(500).json({
+      ok: false,
+      error: 'Content service unavailable',
+      ...(detail ? { details: detail } : {})
+    });
   }
 };

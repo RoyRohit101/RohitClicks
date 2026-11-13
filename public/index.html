@@ -57,6 +57,23 @@ footer{border-top:1px solid var(--bd);padding:60px 5vw 40px;display:flex;flex-wr
 .login-card h2{font-size:38px;margin-bottom:12px}.login-card form{margin-top:18px}
 @media(max-width:680px){.admin-overlay{padding:16px 14px 40px}.admin-head{align-items:flex-start}.admin-head h2{font-size:30px}.admin-project{grid-template-columns:1fr}.admin-project-actions{justify-content:flex-start}.admin-form{grid-template-columns:1fr}.admin-form .wide,.admin-form-footer{grid-column:1}.admin-toolbar input,.admin-toolbar select{max-width:none;width:100%}}
 
+
+.admin-photo-toolbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin:18px 0}
+.admin-photo-toolbar select{min-width:240px;max-width:100%}
+.photo-add{position:relative;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid var(--ac);padding:12px 18px;background:var(--ac);color:#101010;font:11px "DM Mono";letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+.photo-add input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.photo-status{min-height:20px;margin:8px 0 14px;color:var(--mu);font-size:12px}
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:18px}
+.photo-card{overflow:hidden;background:var(--bg2);border:1px solid var(--bd);min-width:0}
+.photo-card img{display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--card)}
+.photo-caption{padding:10px 11px 8px;color:var(--mu);font:10px "DM Mono";letter-spacing:.08em;text-transform:uppercase}
+.photo-actions{display:flex;flex-wrap:wrap;gap:5px;padding:0 9px 10px}
+.photo-actions button{flex:1 1 58px;border:1px solid var(--bd);background:none;color:var(--tx);padding:7px 5px;font:10px "DM Mono";cursor:pointer}
+.photo-actions button:hover{border-color:var(--ac);color:var(--hv)}
+.photo-empty{padding:36px 18px;border:1px dashed var(--bd);text-align:center;color:var(--mu);font-size:13px}
+.photo-hint{font-size:12px;color:var(--mu);line-height:1.6}
+@media(max-width:680px){.photo-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.photo-add{width:100%}.admin-photo-toolbar select{width:100%}}
+
 </style></head><body>
 <nav id="nv"><a href="#home"><b data-k="brand">Cinematic Overthinker</b></a><button id="mb" aria-label="Menu">MENU</button><div><a href="#home">HOME</a><a href="#work">WORK</a><a href="#services">SERVICES</a><a href="#about">ABOUT</a><a href="#contact">CONTACT</a></div></nav>
 <main id="app"></main>
@@ -75,7 +92,7 @@ const CATS=["weddings","events","fashion","jewellery","commercial","creative"];
 const DEFAULT_PROJECTS=[["Wedding Stories","weddings"],["Social Events","events"],["Concert","events"],["Cultural Celebrations","events"],["Fashion","fashion"],["Jewellery Editorial","jewellery"],["Model United Nations","creative"],["Café & Hospitality","commercial"]].map((p,i)=>({id:"p"+i,title:p[0],cat:p[1],ph:[],published:true,featured:i<3,order:i,year:"",client:"",location:"",summary:"",description:"",services:[],tags:[],projectUrl:"",videoUrl:""}));
 const DEFAULT_SETTINGS={brand:"Cinematic Overthinker",email:MAIL,whatsapp:WA,instagram:IG,location:"Kolkata, India"};
 let D={texts:{},settings:{...DEFAULT_SETTINGS},projects:DEFAULT_PROJECTS.map(p=>({...p}))};
-let admin=false,dbReady=false,saveChain=Promise.resolve(),filt="all",adminTab="overview",io=null;
+let admin=false,dbReady=false,saveChain=Promise.resolve(),filt="all",adminTab="overview",io=null,photoProjectId="";
 const $=s=>document.querySelector(s);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const plain=v=>String(v??"").replace(/<br\s*\/?>/gi,"\n").replace(/<\/p\s*>/gi,"\n").replace(/<[^>]*>/g,"").replace(/&nbsp;/g," ");
@@ -138,15 +155,146 @@ window.openLogin=openLogin;$("#loginClose").onclick=()=>{$("#loginPanel").classL
 $("#loginForm").onsubmit=async e=>{e.preventDefault();const email=$("#loginEmail").value.trim().toLowerCase(),code=$("#loginCode").value.trim(),msg=$("#loginStatus"),btn=$("#loginSubmit");btn.disabled=true;try{if($("#codeWrap").hidden){const r=await fetch("/api/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email})});if(!r.ok)throw new Error("Admin login is not configured. Check Vercel environment variables.");$("#codeWrap").hidden=false;$("#loginSubmit").textContent="VERIFY CODE";msg.textContent="If this email is authorised, a six-digit code has been sent. Check your inbox."}else{const r=await fetch("/api/verify",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({email,code})});if(!r.ok)throw new Error("The code is invalid or expired. Request another code.");location.reload()}}catch(err){msg.textContent=err.message}finally{btn.disabled=false}};
 $("#openAdmin").onclick=()=>openAdmin("overview");$("#logoutAdmin").onclick=async()=>{await fetch("/api/logout",{method:"POST"});location.reload()};
 function openAdmin(tab="overview"){if(!admin)return;adminTab=tab;$("#adminPanel").classList.add("on");$("#adminPanel").setAttribute("aria-hidden","false");renderAdmin(tab)}
-function renderAdmin(tab){adminTab=tab;const total=D.projects.length,published=D.projects.filter(p=>p.published).length,featured=D.projects.filter(p=>p.featured).length;const tabs=[["overview","Overview"],["projects","Projects"],["content","Page content"],["settings","Site settings"],["backup","Backup"]];$("#adminPanel").innerHTML="<div class=\"admin-shell\"><header class=\"admin-head\"><div><span class=\"mono\">ROHIT CLICKS / CONTROL ROOM</span><h2>Studio dashboard.</h2><p class=\"admin-muted\">Manage your portfolio. This dashboard does not upload or add photos.</p></div><button class=\"btn\" id=\"adminClose\">CLOSE ✕</button></header><nav class=\"admin-nav\">"+tabs.map(t=>"<button data-tab=\""+t[0]+"\" class=\""+(tab===t[0]?"on":"")+"\">"+t[1]+"</button>").join("")+"</nav><div id=\"adminBody\"></div></div>";$("#adminClose").onclick=()=>{$("#adminPanel").classList.remove("on");$("#adminPanel").setAttribute("aria-hidden","true")};document.querySelectorAll(".admin-nav [data-tab]").forEach(b=>b.onclick=()=>renderAdmin(b.dataset.tab));const body=$("#adminBody");
+function renderAdmin(tab){adminTab=tab;const total=D.projects.length,published=D.projects.filter(p=>p.published).length,featured=D.projects.filter(p=>p.featured).length;const tabs=[["overview","Overview"],["projects","Projects"],["photos","Photos"],["content","Page content"],["settings","Site settings"],["backup","Backup"]];$("#adminPanel").innerHTML="<div class=\"admin-shell\"><header class=\"admin-head\"><div><span class=\"mono\">ROHIT CLICKS / CONTROL ROOM</span><h2>Studio dashboard.</h2><p class=\"admin-muted\">Manage projects, photos and the content of your portfolio.</p></div><button class=\"btn\" id=\"adminClose\">CLOSE ✕</button></header><nav class=\"admin-nav\">"+tabs.map(t=>"<button data-tab=\""+t[0]+"\" class=\""+(tab===t[0]?"on":"")+"\">"+t[1]+"</button>").join("")+"</nav><div id=\"adminBody\"></div></div>";$("#adminClose").onclick=()=>{$("#adminPanel").classList.remove("on");$("#adminPanel").setAttribute("aria-hidden","true")};document.querySelectorAll(".admin-nav [data-tab]").forEach(b=>b.onclick=()=>renderAdmin(b.dataset.tab));const body=$("#adminBody");
 if(tab==="overview"){body.innerHTML="<div class=\"admin-grid\"><div class=\"admin-card\"><div class=\"num\">"+total+"</div><div class=\"admin-muted\">Total projects</div></div><div class=\"admin-card\"><div class=\"num\">"+published+"</div><div class=\"admin-muted\">Published projects</div></div><div class=\"admin-card\"><div class=\"num\">"+featured+"</div><div class=\"admin-muted\">Featured projects</div></div><div class=\"admin-card\"><div class=\"num\">"+(total-published)+"</div><div class=\"admin-muted\">Draft projects</div></div></div><div class=\"admin-card\"><span class=\"mono\">QUICK ACTIONS</span><p style=\"margin:16px 0\"><button class=\"btn f\" id=\"quickAdd\">+ ADD PROJECT</button><button class=\"btn\" id=\"goProjects\">MANAGE PROJECTS</button><button class=\"btn\" id=\"goContent\">EDIT PAGE CONTENT</button></p><p class=\"admin-muted\">Projects can be drafted, published, featured, reordered, duplicated and edited. Existing project images stay untouched; new project forms have no photo upload field.</p></div>";$("#quickAdd").onclick=()=>openProjectEditor(null);$("#goProjects").onclick=()=>renderAdmin("projects");$("#goContent").onclick=()=>renderAdmin("content")}
 if(tab==="projects"){body.innerHTML="<div class=\"admin-toolbar\"><input id=\"projectSearch\" type=\"search\" placeholder=\"Search title, client or tags\"><select id=\"projectCategory\"><option value=\"all\">All categories</option>"+CATS.map(c=>"<option value=\""+c+"\">"+c+"</option>").join("")+"</select><select id=\"projectStatus\"><option value=\"all\">All statuses</option><option value=\"published\">Published</option><option value=\"draft\">Drafts</option><option value=\"featured\">Featured</option></select><button class=\"btn f\" id=\"newProject\">+ ADD PROJECT</button></div><p class=\"admin-muted\" id=\"projectCount\"></p><div class=\"admin-list\" id=\"projectList\"></div>";$("#newProject").onclick=()=>openProjectEditor(null);$("#projectSearch").oninput=renderProjectRows;$("#projectCategory").onchange=renderProjectRows;$("#projectStatus").onchange=renderProjectRows;renderProjectRows()}
+if(tab==="photos"){renderPhotoManager(body)}
 if(tab==="content"){const keys=[["h1","Homepage headline"],["hp","Homepage introduction"],["h2a","Selected work heading"],["h2p","Selected work introduction"],["h2b","Services section heading"],["h2c","Showreel heading"],["h2d","Experience section heading"],["cta","Call-to-action heading"],["ctap","Call-to-action description"],["ab","About heading"],["abt","About biography"],["ct","Contact heading"],["sv1","Services page heading"]];body.innerHTML="<div class=\"admin-card\"><span class=\"mono\">PAGE COPY</span><p class=\"admin-muted\">Edit the written content displayed across the public portfolio. Text is escaped before display.</p><form id=\"contentForm\" class=\"admin-form\">"+keys.map(k=>"<label class=\""+(["abt","hp","ctap"].includes(k[0])?"wide":"")+"\">"+k[1]+(["abt","hp","ctap"].includes(k[0])?"<textarea name=\""+k[0]+"\">"+esc(plain(D.texts[k[0]]||""))+"</textarea>":"<input name=\""+k[0]+"\" value=\""+esc(plain(D.texts[k[0]]||""))+"\">")+"</label>").join("")+"<div class=\"admin-form-footer\"><button class=\"btn f\" type=\"submit\">SAVE PAGE CONTENT</button></div></form></div>";$("#contentForm").onsubmit=e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.currentTarget));Object.keys(v).forEach(k=>D.texts[k]=String(v[k]).trim());sv().then(ok=>{if(ok){render();renderAdmin("content")}})}}
 if(tab==="settings"){const S=settings();body.innerHTML="<div class=\"admin-card\"><span class=\"mono\">PUBLIC CONTACT & IDENTITY</span><p class=\"admin-muted\">These values are displayed on the public contact section and footer.</p><form id=\"settingsForm\" class=\"admin-form\"><label>Portfolio / studio name<input name=\"brand\" maxlength=\"80\" value=\""+esc(S.brand)+"\" required></label><label>Location<input name=\"location\" maxlength=\"100\" value=\""+esc(S.location)+"\"></label><label>Contact email<input name=\"email\" type=\"email\" maxlength=\"160\" value=\""+esc(S.email)+"\" required></label><label>WhatsApp number (country code, digits only)<input name=\"whatsapp\" inputmode=\"numeric\" maxlength=\"20\" value=\""+esc(S.whatsapp)+"\" required></label><label class=\"wide\">Instagram profile URL<input name=\"instagram\" type=\"url\" value=\""+esc(S.instagram)+"\" placeholder=\"https://www.instagram.com/your-profile/\"></label><div class=\"admin-form-footer\"><button class=\"btn f\" type=\"submit\">SAVE SITE SETTINGS</button></div></form></div>";$("#settingsForm").onsubmit=e=>{e.preventDefault();const v=Object.fromEntries(new FormData(e.currentTarget));if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.email)){alert("Enter a valid contact email.");return}if(!/^\d{8,15}$/.test(v.whatsapp)){alert("Enter a WhatsApp number using digits only, including country code.");return}const ig=validHttps(v.instagram);if(!ig){alert("Enter a valid HTTPS Instagram URL.");return}D.settings={brand:v.brand.trim(),location:v.location.trim(),email:v.email.trim(),whatsapp:v.whatsapp.trim(),instagram:ig};sv().then(ok=>{if(ok){render();renderAdmin("settings")}})}}
 if(tab==="backup"){body.innerHTML="<div class=\"admin-card\"><span class=\"mono\">PORTFOLIO BACKUP</span><h3 style=\"margin:12px 0\">Export or restore your site content</h3><p class=\"admin-muted\">Download a JSON backup of project details, text and site settings. Restore a previous JSON backup to replace current content. Existing image URLs are only references; no photos are uploaded here.</p><p style=\"margin-top:20px\"><button class=\"btn f\" id=\"exportBackup\">DOWNLOAD BACKUP</button><label style=\"margin-top:18px\">Restore JSON backup<input id=\"importBackup\" type=\"file\" accept=\"application/json,.json\"></label></p></div>";$("#exportBackup").onclick=()=>{const blob=new Blob([JSON.stringify(D,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="rohitclicks-backup-"+new Date().toISOString().slice(0,10)+".json";a.click();URL.revokeObjectURL(url)};$("#importBackup").onchange=async e=>{const f=e.target.files[0];if(!f)return;if(f.size>2000000){alert("Backup file is too large.");return}try{const d=JSON.parse(await f.text());if(!Array.isArray(d.projects)||!d.texts||typeof d.texts!=="object")throw new Error("Invalid backup format");if(!confirm("Replace the current site content with this backup?"))return;D=normalData(d);const ok=await sv();if(ok){render();renderAdmin("overview")}}catch(err){alert("Could not restore this backup: "+err.message)}}}
 }
+
+function photoStatus(message){const el=$("#photoStatus");if(el)el.textContent=message||""}
+function photoManagerProject(){return D.projects.find(p=>p.id===photoProjectId)||D.projects[0]||null}
+function renderPhotoManager(body){
+  if(!photoProjectId||!D.projects.some(p=>p.id===photoProjectId))photoProjectId=D.projects[0]?.id||"";
+  const options=D.projects.slice().sort((a,b)=>a.title.localeCompare(b.title)).map(p=>"<option value=\""+esc(p.id)+"\" "+(p.id===photoProjectId?"selected":"")+">"+esc(p.title)+(p.published?"":" · DRAFT")+"</option>").join("");
+  if(!D.projects.length){
+    body.innerHTML="<div class=\"photo-empty\">Create a project first. Its photos can be managed here.</div>";
+    return;
+  }
+  body.innerHTML="<div class=\"admin-card\"><span class=\"mono\">PHOTO LIBRARY</span><p class=\"photo-hint\" style=\"margin-top:8px\">Choose a project, then add images from this device. You can replace, reorder or remove each photo at any time.</p><div class=\"admin-photo-toolbar\"><select id=\"photoProjectSelect\" aria-label=\"Choose project\">"+options+"</select><label class=\"photo-add\">+ ADD PHOTOS<input id=\"photoInput\" type=\"file\" accept=\"image/jpeg,image/png,image/webp,image/avif\" multiple></label></div><p class=\"photo-hint\">JPEG, PNG, WebP or AVIF · Up to 50 MB per image · Photos upload directly to storage.</p><p id=\"photoStatus\" class=\"photo-status\" role=\"status\"></p><div id=\"photoGallery\"></div></div>";
+  $("#photoProjectSelect").onchange=e=>{photoProjectId=e.target.value;renderPhotoGallery()};
+  $("#photoInput").onchange=e=>{const files=Array.from(e.target.files||[]);e.target.value="";if(files.length)uploadProjectPhotos(photoManagerProject(),files)};
+  renderPhotoGallery();
+}
+function renderPhotoGallery(){
+  const host=$("#photoGallery"),p=photoManagerProject();
+  if(!host)return;
+  if(!p){host.innerHTML="<div class=\"photo-empty\">Choose a project to manage its photos.</div>";return}
+  const photos=Array.isArray(p.ph)?p.ph:[];
+  if(!photos.length){
+    host.innerHTML="<div class=\"photo-empty\">No photos in this project yet.<br><span class=\"photo-hint\">Use “Add photos” to choose images from your device.</span></div>";
+    return;
+  }
+  host.innerHTML="<div class=\"photo-grid\">"+photos.map((url,index)=>"<article class=\"photo-card\"><img loading=\"lazy\" src=\""+esc(url)+"\" alt=\""+esc(p.title)+" photo "+(index+1)+"\"><div class=\"photo-caption\">PHOTO "+String(index+1).padStart(2,"0")+"</div><div class=\"photo-actions\"><button type=\"button\" data-photo-action=\"replace\" data-index=\""+index+"\">REPLACE</button><button type=\"button\" data-photo-action=\"up\" data-index=\""+index+"\" "+(index===0?"disabled":"")+">↑</button><button type=\"button\" data-photo-action=\"down\" data-index=\""+index+"\" "+(index===photos.length-1?"disabled":"")+">↓</button><button type=\"button\" data-photo-action=\"delete\" data-index=\""+index+"\">DELETE</button></div></article>").join("")+"</div>";
+  host.onclick=async event=>{
+    const button=event.target.closest("[data-photo-action]");
+    if(!button||button.disabled)return;
+    const action=button.dataset.photoAction,index=Number(button.dataset.index);
+    if(!Number.isInteger(index)||index<0||index>=p.ph.length)return;
+    if(action==="replace"){
+      const picker=document.createElement("input");
+      picker.type="file";picker.accept="image/jpeg,image/png,image/webp,image/avif";
+      picker.onchange=()=>{const file=picker.files&&picker.files[0];if(file)uploadProjectPhotos(p,[file],index)};
+      picker.click();return;
+    }
+    if(action==="delete"){
+      if(!confirm("Delete this photo from the project?"))return;
+      const oldUrl=p.ph[index];
+      p.ph.splice(index,1);
+      const saved=await sv();
+      if(!saved){p.ph.splice(index,0,oldUrl);photoStatus("Could not save the change. The photo is still in the project.");renderPhotoGallery();return}
+      try{await deleteStoredPhoto(oldUrl,p.id);photoStatus("Photo deleted.");}
+      catch(error){photoStatus("Removed from the portfolio, but storage cleanup failed: "+error.message)}
+      render();renderAdmin("photos");return;
+    }
+    const next=action==="up"?index-1:index+1;
+    if(next<0||next>=p.ph.length)return;
+    [p.ph[index],p.ph[next]]=[p.ph[next],p.ph[index]];
+    const saved=await sv();
+    if(!saved)[p.ph[index],p.ph[next]]=[p.ph[next],p.ph[index]];
+    render();renderAdmin("photos");
+  };
+}
+function uploadPhotoToBlob(file,project,onProgress){
+  return new Promise(async(resolve,reject)=>{
+    try{
+      const tokenResponse=await fetch("/api/photo",{
+        method:"POST",
+        headers:{"content-type":"application/json"},
+        body:JSON.stringify({action:"upload",projectId:project.id,contentType:file.type,size:file.size})
+      });
+      const tokenData=await tokenResponse.json().catch(()=>({}));
+      if(!tokenResponse.ok||!tokenData.uploadUrl)throw new Error(tokenData.error||"Could not prepare photo upload");
+      const xhr=new XMLHttpRequest();
+      xhr.open("PUT",tokenData.uploadUrl,true);
+      xhr.setRequestHeader("Content-Type",file.type);
+      xhr.upload.onprogress=event=>{if(event.lengthComputable&&onProgress)onProgress(Math.round(event.loaded/event.total*100))};
+      xhr.onload=()=>{if(xhr.status>=200&&xhr.status<300)resolve(tokenData.url);else reject(new Error("Photo upload failed ("+xhr.status+")."))};
+      xhr.onerror=()=>reject(new Error("Network error while uploading the photo"));
+      xhr.onabort=()=>reject(new Error("Photo upload was cancelled"));
+      xhr.send(file);
+    }catch(error){reject(error)}
+  });
+}
+async function deleteStoredPhoto(url,projectId){
+  if(typeof url!=="string"||!url.startsWith("https://"))return;
+  const response=await fetch("/api/photo",{
+    method:"POST",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({action:"delete",projectId,url})
+  });
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.ok)throw new Error(result.error||"Could not delete the stored image");
+}
+async function uploadProjectPhotos(project,files,replaceIndex=null){
+  if(!admin||!dbReady||!project){photoStatus("Log in as admin and choose a project before uploading.");return}
+  const selected=replaceIndex===null?files:files.slice(0,1);
+  const valid=selected.filter(file=>{
+    const accepted=["image/jpeg","image/png","image/webp","image/avif"].includes(file.type);
+    if(!accepted)photoStatus(file.name+": use JPEG, PNG, WebP or AVIF.");
+    else if(!file.size||file.size>50*1024*1024)photoStatus(file.name+": the file must be 50 MB or smaller.");
+    return accepted&&file.size>0&&file.size<=50*1024*1024;
+  });
+  if(!valid.length)return;
+  const original=(project.ph||[]).slice(),uploaded=[];
+  photoStatus("Preparing "+valid.length+" photo(s)…");
+  for(let index=0;index<valid.length;index++){
+    const file=valid[index];
+    try{
+      const url=await uploadPhotoToBlob(file,project,percent=>{
+        photoStatus("Uploading "+(index+1)+" of "+valid.length+" · "+percent+"%");
+      });
+      uploaded.push(url);
+      photoStatus("Uploaded "+(index+1)+" of "+valid.length);
+    }catch(error){
+      photoStatus("Upload stopped: "+error.message);
+      break;
+    }
+  }
+  if(!uploaded.length)return;
+  if(replaceIndex!==null)project.ph[replaceIndex]=uploaded[0];
+  else project.ph.push(...uploaded);
+  const saved=await sv();
+  if(!saved){
+    project.ph=original;
+    for(const url of uploaded){try{await deleteStoredPhoto(url,project.id)}catch{}}
+    photoStatus("Photos uploaded, but the project could not be saved. Please try again.");
+    renderPhotoGallery();return;
+  }
+  if(replaceIndex!==null&&original[replaceIndex]){
+    try{await deleteStoredPhoto(original[replaceIndex],project.id)}
+    catch(error){photoStatus("Photo replaced. The previous file could not be cleaned up: "+error.message)}
+  }
+  render();
+  renderAdmin("photos");
+  if(replaceIndex===null)photoStatus(uploaded.length+" photo(s) added.");
+  else if(!$("#photoStatus")?.textContent)photoStatus("Photo replaced.");
+}
+
 function renderProjectRows(){const list=$("#projectList");if(!list)return;const q=$("#projectSearch").value.trim().toLowerCase(),cat=$("#projectCategory").value,state=$("#projectStatus").value,items=D.projects.filter(p=>(cat==="all"||p.cat===cat)&&(state==="all"||(state==="published"&&p.published)||(state==="draft"&&!p.published)||(state==="featured"&&p.featured))&&[p.title,p.client,p.summary,p.tags.join(" ")].join(" ").toLowerCase().includes(q));$("#projectCount").textContent=items.length+" project(s) shown · "+D.projects.length+" total";list.innerHTML=items.map(p=>"<div class=\"admin-project\"><div><h3>"+esc(p.title)+"</h3><p class=\"admin-muted\">"+esc(p.cat)+" · "+esc(p.year||"Year not set")+" · "+(p.published?"Published":"Draft")+(p.featured?" · Featured":"")+(p.client?" · "+esc(p.client):"")+"</p><p class=\"admin-muted\">"+esc(p.summary||"No summary added yet.")+"</p></div><div class=\"admin-project-actions\"><button class=\"admin-action\" data-action=\"edit\" data-id=\""+esc(p.id)+"\">Edit</button><button class=\"admin-action\" data-action=\"publish\" data-id=\""+esc(p.id)+"\">"+(p.published?"Unpublish":"Publish")+"</button><button class=\"admin-action\" data-action=\"feature\" data-id=\""+esc(p.id)+"\">"+(p.featured?"Unfeature":"Feature")+"</button><button class=\"admin-action\" data-action=\"up\" data-id=\""+esc(p.id)+"\">↑</button><button class=\"admin-action\" data-action=\"down\" data-id=\""+esc(p.id)+"\">↓</button><button class=\"admin-action\" data-action=\"duplicate\" data-id=\""+esc(p.id)+"\">Duplicate</button><button class=\"admin-action\" data-action=\"delete\" data-id=\""+esc(p.id)+"\">Delete</button></div></div>").join("")||"<p class=\"admin-muted\" style=\"padding:22px 0\">No projects match these filters. Add a new project or change the search.</p>";list.onclick=e=>{const b=e.target.closest("[data-action]");if(!b)return;const p=D.projects.find(x=>x.id===b.dataset.id);if(!p)return;const a=b.dataset.action;if(a==="edit")return openProjectEditor(p.id);if(a==="delete"){if(!confirm("Delete "+p.title+"? This cannot be undone."))return;D.projects=D.projects.filter(x=>x.id!==p.id)}if(a==="duplicate")D.projects.unshift(normalProject({...p,id:"p"+Date.now(),title:p.title+" (Copy)",published:false,featured:false,createdAt:new Date().toISOString()},D.projects.length));if(a==="publish")p.published=!p.published;if(a==="feature")p.featured=!p.featured;if(a==="up"||a==="down"){const i=D.projects.indexOf(p),j=a==="up"?i-1:i+1;if(j>=0&&j<D.projects.length)[D.projects[i],D.projects[j]]=[D.projects[j],D.projects[i]]}sv().then(()=>renderAdmin("projects"))}}
-function openProjectEditor(id){if(!admin)return;const old=id?D.projects.find(p=>p.id===id):null,p=old||{id:"",title:"",cat:"events",year:new Date().getFullYear().toString(),client:"",location:settings().location,summary:"",description:"",services:[],tags:[],projectUrl:"",videoUrl:"",featured:false,published:true,order:D.projects.length,ph:[]},body=$("#adminBody");let categoryOptions=CATS.map(c=>"<option value=\""+c+"\" "+(p.cat===c?"selected":"")+">"+c+"</option>").join("");body.innerHTML="<div class=\"admin-card\"><span class=\"mono\">"+(old?"EDIT PROJECT":"NEW PROJECT")+"</span><h3 style=\"margin:10px 0 4px\">"+(old?"Update project details":"Add a project to your portfolio")+"</h3><p class=\"admin-muted\">No photo upload is included. New project entries are text and metadata only.</p><form id=\"projectForm\" class=\"admin-form\"><label>Project title *<input name=\"title\" maxlength=\"120\" value=\""+esc(p.title)+"\" required></label><label>Category<select name=\"cat\">"+categoryOptions+"</select></label><label>Client / brand<input name=\"client\" maxlength=\"120\" value=\""+esc(p.client)+"\"></label><label>Year<input name=\"year\" type=\"number\" min=\"1900\" max=\"2200\" value=\""+esc(p.year)+"\"></label><label>Location<input name=\"location\" maxlength=\"120\" value=\""+esc(p.location)+"\"></label><label>Display order<input name=\"order\" type=\"number\" value=\""+esc(p.order)+"\"></label><label class=\"wide\">Short summary<input name=\"summary\" maxlength=\"240\" value=\""+esc(p.summary)+"\"></label><label class=\"wide\">Project description<textarea name=\"description\" maxlength=\"4000\">"+esc(p.description)+"</textarea></label><label>Services delivered<input name=\"services\" value=\""+esc(p.services.join(", "))+"\" placeholder=\"Photography, cinematography, editing\"></label><label>Tags<input name=\"tags\" value=\""+esc(p.tags.join(", "))+"\" placeholder=\"Wedding, editorial, Kolkata\"></label><label>External project URL<input name=\"projectUrl\" type=\"url\" value=\""+esc(p.projectUrl)+"\" placeholder=\"https://...\"></label><label>Film / video URL<input name=\"videoUrl\" type=\"url\" value=\""+esc(p.videoUrl)+"\" placeholder=\"https://...\"></label><div class=\"admin-checks wide\"><label><input name=\"featured\" type=\"checkbox\" "+(p.featured?"checked":"")+"> Featured on homepage</label><label><input name=\"published\" type=\"checkbox\" "+(p.published?"checked":"")+"> Published on website</label></div><div class=\"admin-form-footer\"><button class=\"btn f\" type=\"submit\">SAVE PROJECT</button><button class=\"btn\" id=\"cancelProject\" type=\"button\">CANCEL</button>"+(old?"<button class=\"btn\" id=\"deleteFromEditor\" type=\"button\">DELETE PROJECT</button>":"")+"</div></form></div>";$("#cancelProject").onclick=()=>renderAdmin("projects");const f=$("#projectForm");f.onsubmit=e=>{e.preventDefault();const v=Object.fromEntries(new FormData(f));if(!v.title.trim()){alert("Project title is required.");return}const project={...p,id:old?p.id:"p"+Date.now(),title:v.title.trim(),cat:CATS.includes(v.cat)?v.cat:"creative",client:v.client.trim(),year:v.year.trim(),location:v.location.trim(),summary:v.summary.trim(),description:v.description.trim(),services:splitList(v.services),tags:splitList(v.tags),projectUrl:validHttps(v.projectUrl),videoUrl:validHttps(v.videoUrl),featured:f.elements.featured.checked,published:f.elements.published.checked,order:Number(v.order)||0,ph:old?(old.ph||[]):[],createdAt:old?(old.createdAt||""):new Date().toISOString(),updatedAt:new Date().toISOString()};if(old){const i=D.projects.findIndex(x=>x.id===old.id);D.projects[i]=normalProject(project,i)}else D.projects.push(normalProject(project,D.projects.length));D.projects.sort((a,b)=>a.order-b.order);sv().then(ok=>{if(ok){render();renderAdmin("projects")}})};const del=$("#deleteFromEditor");if(del)del.onclick=()=>{if(confirm("Delete this project?")){D.projects=D.projects.filter(x=>x.id!==old.id);sv().then(()=>renderAdmin("projects"))}}}
+function openProjectEditor(id){if(!admin)return;const old=id?D.projects.find(p=>p.id===id):null,p=old||{id:"",title:"",cat:"events",year:new Date().getFullYear().toString(),client:"",location:settings().location,summary:"",description:"",services:[],tags:[],projectUrl:"",videoUrl:"",featured:false,published:true,order:D.projects.length,ph:[]},body=$("#adminBody");let categoryOptions=CATS.map(c=>"<option value=\""+c+"\" "+(p.cat===c?"selected":"")+">"+c+"</option>").join("");body.innerHTML="<div class=\"admin-card\"><span class=\"mono\">"+(old?"EDIT PROJECT":"NEW PROJECT")+"</span><h3 style=\"margin:10px 0 4px\">"+(old?"Update project details":"Add a project to your portfolio")+"</h3><p class=\"admin-muted\">You can manage this project’s gallery from the Photos tab. Uploads are available only while you are logged into the admin dashboard.</p><form id=\"projectForm\" class=\"admin-form\"><label>Project title *<input name=\"title\" maxlength=\"120\" value=\""+esc(p.title)+"\" required></label><label>Category<select name=\"cat\">"+categoryOptions+"</select></label><label>Client / brand<input name=\"client\" maxlength=\"120\" value=\""+esc(p.client)+"\"></label><label>Year<input name=\"year\" type=\"number\" min=\"1900\" max=\"2200\" value=\""+esc(p.year)+"\"></label><label>Location<input name=\"location\" maxlength=\"120\" value=\""+esc(p.location)+"\"></label><label>Display order<input name=\"order\" type=\"number\" value=\""+esc(p.order)+"\"></label><label class=\"wide\">Short summary<input name=\"summary\" maxlength=\"240\" value=\""+esc(p.summary)+"\"></label><label class=\"wide\">Project description<textarea name=\"description\" maxlength=\"4000\">"+esc(p.description)+"</textarea></label><label>Services delivered<input name=\"services\" value=\""+esc(p.services.join(", "))+"\" placeholder=\"Photography, cinematography, editing\"></label><label>Tags<input name=\"tags\" value=\""+esc(p.tags.join(", "))+"\" placeholder=\"Wedding, editorial, Kolkata\"></label><label>External project URL<input name=\"projectUrl\" type=\"url\" value=\""+esc(p.projectUrl)+"\" placeholder=\"https://...\"></label><label>Film / video URL<input name=\"videoUrl\" type=\"url\" value=\""+esc(p.videoUrl)+"\" placeholder=\"https://...\"></label><div class=\"admin-checks wide\"><label><input name=\"featured\" type=\"checkbox\" "+(p.featured?"checked":"")+"> Featured on homepage</label><label><input name=\"published\" type=\"checkbox\" "+(p.published?"checked":"")+"> Published on website</label></div><div class=\"admin-form-footer\"><button class=\"btn f\" type=\"submit\">SAVE PROJECT</button><button class=\"btn\" id=\"cancelProject\" type=\"button\">CANCEL</button>"+(old?"<button class=\"btn\" id=\"deleteFromEditor\" type=\"button\">DELETE PROJECT</button>":"")+"</div></form></div>";$("#cancelProject").onclick=()=>renderAdmin("projects");const f=$("#projectForm");f.onsubmit=e=>{e.preventDefault();const v=Object.fromEntries(new FormData(f));if(!v.title.trim()){alert("Project title is required.");return}const project={...p,id:old?p.id:"p"+Date.now(),title:v.title.trim(),cat:CATS.includes(v.cat)?v.cat:"creative",client:v.client.trim(),year:v.year.trim(),location:v.location.trim(),summary:v.summary.trim(),description:v.description.trim(),services:splitList(v.services),tags:splitList(v.tags),projectUrl:validHttps(v.projectUrl),videoUrl:validHttps(v.videoUrl),featured:f.elements.featured.checked,published:f.elements.published.checked,order:Number(v.order)||0,ph:old?(old.ph||[]):[],createdAt:old?(old.createdAt||""):new Date().toISOString(),updatedAt:new Date().toISOString()};if(old){const i=D.projects.findIndex(x=>x.id===old.id);D.projects[i]=normalProject(project,i)}else D.projects.push(normalProject(project,D.projects.length));D.projects.sort((a,b)=>a.order-b.order);sv().then(ok=>{if(ok){render();renderAdmin("projects")}})};const del=$("#deleteFromEditor");if(del)del.onclick=()=>{if(confirm("Delete this project?")){D.projects=D.projects.filter(x=>x.id!==old.id);sv().then(()=>renderAdmin("projects"))}}}
 async function init(){render();try{const me=await fetch("/api/me",{cache:"no-store"}).then(r=>r.ok?r.json():{admin:false});admin=!!me.admin;const r=await fetch("/api/content",{cache:"no-store"});if(r.ok){const d=await r.json();if(d&&Array.isArray(d.projects))D=normalData(d);dbReady=admin}}catch(e){console.error("Could not load site content",e)}render();if(admin)$("#ad").style.display="flex"}
 init();
 </script></body></html>

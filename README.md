@@ -36,7 +36,7 @@ The dashboard includes:
 
 Open the **Photos** tab while logged in as admin. Choose a project and select **Add photos** to pick one or many images from the device you're using. Each photo can be previewed, replaced, moved earlier/later, or deleted.
 
-Supported formats: JPEG, PNG, WebP and AVIF. Each file can be up to 50 MB. Uploads go directly from the browser to Vercel Blob using short-lived, single-file signed permissions. The long-lived Blob storage credential stays on the server.
+Supported formats: JPEG, PNG, WebP and AVIF. Each file can be up to 50 MB. Uploads use the official `@vercel/blob/client` browser helper and the official `handleUpload` server handshake. The browser module is loaded from the pinned `esm.sh` CDN URL; allow this CDN in browser/network settings. The long-lived Blob storage credential stays on the server.
 
 Deleting a photo removes its reference from the project and asks the Blob API to delete the stored file. Replacing a photo saves the new URL before attempting to remove the previous stored file. If storage cleanup fails, the portfolio still reflects the saved gallery change and the dashboard reports the cleanup issue.
 

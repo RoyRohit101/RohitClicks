@@ -1,0 +1,11 @@
+const c=require('crypto');
+const S=process.env.AUTH_SECRET||'',AE=(process.env.ADMIN_EMAIL||'').trim().toLowerCase();
+const h=s=>c.createHmac('sha256',S).update(s).digest('hex');
+const win=()=>Math.floor(Date.now()/6e5);
+const code=(e,w)=>String(parseInt(h(e+':'+w).slice(0,8),16)%1000000).padStart(6,'0');
+const cookie=(req,n)=>((req.headers.cookie||'').split(/;\s*/).find(x=>x.startsWith(n+'='))||'').slice(n.length+1);
+const isAdmin=req=>{const [e,s]=cookie(req,'adm').split('.');return !!(S&&e&&s&&+e>Date.now()&&h('adm'+e)===s)};
+const token=()=>{const e=Date.now()+7*864e5;return e+'.'+h('adm'+e)};
+const mail=(subject,text,reply)=>fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:'Rohit Clicks <onboarding@resend.dev>',to:[AE],subject,text,...(reply?{reply_to:reply}:{})})});
+const raw=req=>new Promise(r=>{const a=[];req.on('data',d=>a.push(d));req.on('end',()=>r(Buffer.concat(a)))});
+module.exports={AE,win,code,isAdmin,token,mail,raw};

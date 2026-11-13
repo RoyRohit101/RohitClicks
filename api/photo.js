@@ -16,10 +16,6 @@ module.exports = async (req, res) => {
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
-  if (!L.isAdmin(req)) {
-    return res.status(401).json({ ok: false, error: 'Your admin session has expired. Log in again.' });
-  }
-
   let body;
   try {
     body = parseBody(req.body);
@@ -28,6 +24,9 @@ module.exports = async (req, res) => {
   }
 
   if (body.action === 'delete') {
+    if (!L.isAdmin(req)) {
+      return res.status(401).json({ ok: false, error: 'Your admin session has expired. Log in again.' });
+    }
     try {
       const projectId = String(body.projectId || '');
       if (!safeId(projectId)) {
@@ -68,6 +67,13 @@ module.exports = async (req, res) => {
       body,
       request: req,
       onBeforeGenerateToken: async (pathname, clientPayload) => {
+        if (!L.isAdmin(req)) {
+          throw new Error('Your admin session has expired. Log in again.');
+        }
+        const limit = L.checkRateLimit(req, 'photo-upload', 60, 600000);
+        if (!limit.allowed) {
+          throw new Error('Too many photo uploads. Please wait before uploading more.');
+        }
         const projectId = String(clientPayload || '');
         if (!safeId(projectId)) {
           throw new Error('Invalid project. Please choose a project and try again.');

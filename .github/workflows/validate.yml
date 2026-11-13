@@ -43,4 +43,5 @@ jobs:
           grep -q "NEW PROJECT" public/index.html
           grep -q "featured" public/index.html
           test ! -e api/upload.js
-          ! grep -q "IMG2" public/index.html
+          grep -q "IMG2" public/index.html
+          ! grep -q "ADD PHOTOS" public/index.html

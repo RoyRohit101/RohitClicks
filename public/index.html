@@ -61,7 +61,7 @@ footer{border-top:1px solid var(--bd);padding:60px 5vw 40px;display:flex;flex-wr
 <nav id="nv"><a href="#home"><b data-k="brand">Cinematic Overthinker</b></a><button id="mb" aria-label="Menu">MENU</button><div><a href="#home">HOME</a><a href="#work">WORK</a><a href="#services">SERVICES</a><a href="#about">ABOUT</a><a href="#contact">CONTACT</a></div></nav>
 <main id="app"></main>
 <footer id="ft"></footer>
-<div id="md"><button class="x" onclick="md.classList.remove('on')">CLOSE ✕</button><div id="mc"></div></div>
+<div id="md"><button class="x" id="mdClose" type="button">CLOSE ✕</button><div id="mc"></div></div>
 <div id="ad"><span class="mono">ADMIN SESSION ACTIVE</span><button class="btn" id="openAdmin">OPEN STUDIO DASHBOARD</button><button class="btn" id="logoutAdmin">LOG OUT</button><span id="ok"></span></div>
 <div id="adminPanel" class="admin-overlay" aria-hidden="true"></div>
 <div id="loginPanel" class="admin-overlay" aria-hidden="true"><div class="login-card"><button class="x" id="loginClose" type="button">CLOSE ✕</button><span class="mono">ROHIT CLICKS / PRIVATE ACCESS</span><h2>Admin login.</h2><p class="admin-muted">Enter the admin email address. A one-time code will be sent if the address is authorised.</p><form id="loginForm"><label>Email address<input id="loginEmail" type="email" autocomplete="email" required></label><div id="codeWrap" hidden><label>Six-digit code<input id="loginCode" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code"></label></div><button class="btn f" id="loginSubmit" type="submit">SEND LOGIN CODE</button><p id="loginStatus" class="admin-note" role="status"></p></form></div></div>
